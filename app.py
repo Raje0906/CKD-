@@ -18,15 +18,23 @@ except ImportError:
     except ImportError:
         from models.ckd_model import ckd_model
         print("Using full model")
-import pandas as pd
 import io
 import os
+
+# Only import pandas when not on Vercel to reduce bundle size
+try:
+    import os as os_env_check
+    if not (os_env_check.environ.get('VERCEL') or os_env_check.environ.get('VERCEL_ENV')):
+        import pandas as pd
+    else:
+        pd = None
+except ImportError:
+    pd = None
 
 # Track patient free trials for lab uploads
 patient_upload_trials = {}
 
 # Log environment info
-import os
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -181,22 +189,42 @@ def admin_dashboard():
         doctor.patients = [user for user in users_db.values() if user.is_patient()]
     
     # Mock feedback data (in real app, this would come from database)
-    feedbacks = [
-        {
-            'patient_name': 'John Doe',
-            'doctor_name': 'doctor1',
-            'rating': 5,
-            'comment': 'Excellent service and very professional care.',
-            'date': pd.Timestamp('2025-01-15')
-        },
-        {
-            'patient_name': 'Jane Smith',
-            'doctor_name': 'doctor1',
-            'rating': 4,
-            'comment': 'Good experience, doctor was very helpful.',
-            'date': pd.Timestamp('2025-01-12')
-        }
-    ]
+    # Handle case where pandas might not be available on Vercel
+    try:
+        feedbacks = [
+            {
+                'patient_name': 'John Doe',
+                'doctor_name': 'doctor1',
+                'rating': 5,
+                'comment': 'Excellent service and very professional care.',
+                'date': pd.Timestamp('2025-01-15') if pd else '2025-01-15'
+            },
+            {
+                'patient_name': 'Jane Smith',
+                'doctor_name': 'doctor1',
+                'rating': 4,
+                'comment': 'Good experience, doctor was very helpful.',
+                'date': pd.Timestamp('2025-01-12') if pd else '2025-01-12'
+            }
+        ]
+    except:
+        # Fallback when pandas is not available
+        feedbacks = [
+            {
+                'patient_name': 'John Doe',
+                'doctor_name': 'doctor1',
+                'rating': 5,
+                'comment': 'Excellent service and very professional care.',
+                'date': '2025-01-15'
+            },
+            {
+                'patient_name': 'Jane Smith',
+                'doctor_name': 'doctor1',
+                'rating': 4,
+                'comment': 'Good experience, doctor was very helpful.',
+                'date': '2025-01-12'
+            }
+        ]
     
     return render_template('admin_dashboard.html', doctors=doctors, feedbacks=feedbacks)
 
@@ -335,6 +363,11 @@ def upload_file():
     return jsonify({'error': 'Invalid file'}), 400
 
 def process_csv_upload(file):
+    # Handle case where pandas might not be available on Vercel
+    if pd is None:
+        flash('CSV processing is not available in this deployment environment', 'warning')
+        return jsonify({'error': 'CSV processing not available'}), 500
+    
     df = pd.read_csv(io.StringIO(file.stream.read().decode('utf-8')))
     
     patient_list = df.to_dict('records')
@@ -446,9 +479,13 @@ def upload_lab_report():
     # Process the lab report (simplified - would integrate with actual ML model)
     try:
         if file.filename.endswith('.csv'):
-            df = pd.read_csv(file)
-            # Process CSV data
-            results = {'status': 'success', 'message': 'Lab report analyzed successfully', 'data_points': len(df)}
+            # Handle case where pandas might not be available on Vercel
+            if pd is None:
+                results = {'status': 'warning', 'message': 'CSV analysis not available in this environment', 'file_type': 'csv'}
+            else:
+                df = pd.read_csv(file)
+                # Process CSV data
+                results = {'status': 'success', 'message': 'Lab report analyzed successfully', 'data_points': len(df)}
         else:
             # For PDF/Excel files, would need additional processing
             results = {'status': 'success', 'message': 'Lab report uploaded successfully', 'file_type': file.filename.split('.')[-1]}
@@ -516,11 +553,20 @@ def patient_trends(username):
     
     history = patient_data['history']
     
-    dates = [record['date'] for record in reversed(history)]
-    creatinine = [record['serum_creatinine'] for record in reversed(history)]
-    egfr = [record['egfr'] for record in reversed(history)]
-    blood_urea = [record['blood_urea'] for record in reversed(history)]
-    hemoglobin = [record['hemoglobin'] for record in reversed(history)]
+    # Handle case where pandas might not be available
+    if pd is not None:
+        dates = [record['date'] for record in reversed(history)]
+        creatinine = [record['serum_creatinine'] for record in reversed(history)]
+        egfr = [record['egfr'] for record in reversed(history)]
+        blood_urea = [record['blood_urea'] for record in reversed(history)]
+        hemoglobin = [record['hemoglobin'] for record in reversed(history)]
+    else:
+        # Simplified data processing when pandas is not available
+        dates = [record.get('date', '') for record in reversed(history)]
+        creatinine = [record.get('serum_creatinine', 0) for record in reversed(history)]
+        egfr = [record.get('egfr', 0) for record in reversed(history)]
+        blood_urea = [record.get('blood_urea', 0) for record in reversed(history)]
+        hemoglobin = [record.get('hemoglobin', 0) for record in reversed(history)]
     
     return jsonify({
         'dates': dates,
