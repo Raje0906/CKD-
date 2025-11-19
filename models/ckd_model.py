@@ -19,7 +19,9 @@ class CKDModel:
             'pedal_edema', 'anemia'
         ]
         # Only train model if not running on Vercel (to save time during build)
-        if not os.environ.get('VERCEL'):
+        # Also check for VERCEL_ENV to handle both build and runtime environments
+        vercel_env = os.environ.get('VERCEL') or os.environ.get('VERCEL_ENV')
+        if not vercel_env:
             self.train_model()
     
     def train_model(self):
@@ -52,9 +54,17 @@ class CKDModel:
         self.model.fit(X_scaled, y)
     
     def predict_risk(self, patient_data):
-        # If model hasn't been trained yet (e.g., on Vercel), train it now
+        # If model hasn't been trained yet (e.g., on Vercel), return default values
         if self.model is None:
-            self.train_model()
+            # Return default/fallback values when model is not available
+            stage = self.calculate_ckd_stage(patient_data)
+            return {
+                'risk_percentage': 0,
+                'stage': stage,
+                'risk_level': 'Unknown',
+                'feature_importance': [],
+                'egfr': self.calculate_egfr(patient_data.get('age'), patient_data.get('serum_creatinine', 1.0), patient_data.get('gender', 'male'))
+            }
             
         features = self.prepare_features(patient_data)
         features_scaled = self.scaler.transform([features])

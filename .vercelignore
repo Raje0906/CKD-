@@ -12,3 +12,9 @@ build/
 vois_ckd.egg-info/
 *.egg-info/
 .env
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+sample_patients.csv

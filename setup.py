@@ -9,9 +9,9 @@ setup(
     install_requires=[
         'Flask==3.0.0',
         'Flask-Login==0.6.3',
-        'scikit-learn>=1.5.0',
+        'scikit-learn==1.5.0',
         'pandas==2.3.3',
-        'numpy==2.1.0',
+        'numpy==1.26.4',
         'joblib==1.3.2',
         'Werkzeug==3.0.1',
         'PyPDF2==3.0.1',

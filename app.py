@@ -2,13 +2,36 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from models.user import User, users_db, patients_data, patient_records
-from models.ckd_model import ckd_model
+try:
+    from models.model_loader import load_model_conditionally
+    ckd_model = load_model_conditionally()
+    # Check if it's the lightweight model
+    import os
+    if os.environ.get('VERCEL') or os.environ.get('VERCEL_ENV'):
+        print("Using lightweight model for Vercel deployment")
+except ImportError:
+    # Fallback to direct import
+    try:
+        from models.vercel_model import lightweight_model
+        ckd_model = lightweight_model
+        print("Using lightweight model as fallback")
+    except ImportError:
+        from models.ckd_model import ckd_model
+        print("Using full model")
 import pandas as pd
 import io
 import os
 
 # Track patient free trials for lab uploads
 patient_upload_trials = {}
+
+# Log environment info
+import os
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.info(f"VERCEL environment: {os.environ.get('VERCEL')}")
+logger.info(f"VERCEL_ENV environment: {os.environ.get('VERCEL_ENV')}"),
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SESSION_SECRET', 'ckd-diagnostic-system-secret-key-2025')
